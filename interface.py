@@ -4,7 +4,6 @@ import tkinter.filedialog
 import threading
 import json
 import urllib.request
-from video import *
 import youtube_dl
 
 # Support Classes
@@ -28,6 +27,8 @@ class GoogleApiHandler(threading.Thread):
 	def idSeparator(self,link,isplaylist=False):
 		if isplaylist:
 			(url,playlistid) = link.split("list=")
+			print("URL     :"+url)
+			print("PLAYLIST ID    :"+playlistid)
 			return playlistid
 		else:
 			(url,atrs) = link.split("v=")
@@ -44,31 +45,59 @@ class GoogleApiHandler(threading.Thread):
 			videoList.insert(END,item)
 		link.set("")
 		status.set("Pronto.")
+
+	def getDataVideo(self,videoid):
+		listaDeRetorno = []
+		url = "https://www.googleapis.com/youtube/v3/videos?id="+videoid+"&key="+self.apikey+"&part=snippet"
+		data = urllib.request.urlopen(url)
+
+		lista = json.loads(data.readall().decode("utf-8"))
+			
+		for item in lista["items"]:
+			listaDeRetorno.append(Video(videoid,item["snippet"]["title"]))
+		return listaDeRetorno
+
+	def getDataPlaylist(self,playlistid):
+		
+		listaDeRetorno = []
+		lista = {"nextPageToken": ""}
+		
+		while "nextPageToken" in lista:
+			
+			url = "https://www.googleapis.com/youtube/v3/playlistItems?playlistId="+playlistid+"&key="+self.apikey+"&part=snippet,contentDetails&maxResults=50&pageToken="+lista["nextPageToken"]
+	
+			data = urllib.request.urlopen(url)
+
+			lista = json.loads(data.readall().decode("utf-8"))
+
+			for item in lista["items"]:
+				listaDeRetorno.append(Video(item["contentDetails"]["videoId"],item["snippet"]["title"]))
+
+		return listaDeRetorno
 	
 	def getInfo(self):
 
 		returnLista = []
 
-		if "watch?" in self.link:
-			videoid = self.idSeparator(self.link)
-			url = "https://www.googleapis.com/youtube/v3/videos?id="+videoid+"&key="+self.apikey+"&part=snippet"
-			data = urllib.request.urlopen(url)
-
-			lista = json.loads(data.readall().decode("utf-8"))
+		if "watch?" in self.link and "list=" in self.link:
 			
-			for item in lista["items"]:
-				returnLista.append(Video(videoid,item["snippet"]["title"]))
+			answer = tkinter.messagebox.askquestion("Aviso","O seu link possui o dois atributos, uma playlist e um vídeo, deseja usar a playlist?")
+			if answer == "yes":
+				playlistid = self.idSeparator(self.link,True)
+				returnLista = self.getDataPlaylist(playlistid)
+			else:
+				videoid = self.idSeparator(self.link)
+				returnLista = self.getDataVideo(videoid)
+
+
+		elif "watch?" in self.link:
+			videoid = self.idSeparator(self.link)
+			returnLista = self.getDataVideo(videoid)
 			
 		
 		else:
 			playlistid = self.idSeparator(self.link,True)
-			url = "https://www.googleapis.com/youtube/v3/playlistItems?playlistId="+playlistid+"&key="+self.apikey+"&part=snippet,contentDetails&maxResults=50"
-			data = urllib.request.urlopen(url)
-
-			lista = json.loads(data.readall().decode("utf-8"))
-
-			for item in lista["items"]:
-				returnLista.append(Video(item["contentDetails"]["videoId"],item["snippet"]["title"]))
+			returnLista = self.getDataPlaylist(playlistid)
 			
 		return returnLista
 
@@ -81,24 +110,28 @@ class musicDownloader(threading.Thread):
       
 	def run(self): 	
 		
-		for item in self.listToDownload:
-			status.set("Baixando musica: "+ item.title)
-			ydl_opts = {
-    		'format': 'bestaudio/best',
-    		'outtmpl': self.destiny+'/'+item.title+".%(ext)s",
-    		'postprocessors': [{
-        	'key': 'FFmpegExtractAudio',
-        	'preferredcodec': 'mp3',
-        	'preferredquality': '192',
 
-    		}],
-	
-			}
-		
+		for item in self.listToDownload:
 			try:
-				with youtube_dl.YoutubeDL(ydl_opts) as ydl:
-					ydl.download(['http://www.youtube.com/watch?v='+item.id])
-			except youtube_dl.utils.DownloadError:
+				status.set("Baixando musica: "+ item.title)
+				ydl_opts = {
+    			'format': 'bestaudio/best',
+    			'outtmpl': self.destiny+'/'+item.title+".%(ext)s",
+    			'postprocessors': [{
+        		'key': 'FFmpegExtractAudio',
+        		'preferredcodec': 'mp3',
+        		'preferredquality': '192',
+
+    			}],
+	
+				}
+		
+				try:
+					with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+						ydl.download(['http://www.youtube.com/watch?v='+item.id])
+				except youtube_dl.utils.DownloadError:
+					pass
+			except:
 				pass
 		status.set("Pronto.")
 			
