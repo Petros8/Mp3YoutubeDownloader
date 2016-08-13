@@ -12,3 +12,5 @@ Tkinter (interface)
 Versão um pouco modificada do Youtube-DL - https://github.com/rg3/youtube-dl
 
 ffmpeg e ffprobe para conversão de vídeos em MP3 (Usado pelo youtube-dl)
+
+py2exe para gerar executáveis do Windows
