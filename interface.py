@@ -43,6 +43,7 @@ class GoogleApiHandler(threading.Thread):
 		for item in videosList:
 			listToDownload.append(item)
 			videoList.insert(END,item)
+		activeApiThread = GoogleApiHandler(link.get())
 		link.set("")
 		status.set("Pronto.")
 
@@ -95,10 +96,12 @@ class GoogleApiHandler(threading.Thread):
 			returnLista = self.getDataVideo(videoid)
 			
 		
-		else:
+		elif "list=" in self.link:
 			playlistid = self.idSeparator(self.link,True)
 			returnLista = self.getDataPlaylist(playlistid)
-			
+		
+		else:
+			tkinter.messagebox.showinfo("Alerta","Link inválido")
 		return returnLista
 
 class musicDownloader(threading.Thread):
@@ -107,12 +110,18 @@ class musicDownloader(threading.Thread):
 	 	threading.Thread.__init__(self)
 	 	self.listToDownload = listToDownload
 	 	self.destiny = destiny
-      
+    
+	def stop(self):
+		self._stop.set()
+
+
 	def run(self): 	
 		
+		global stopDownloadFlag
+		copyList = list(self.listToDownload)
 
-		for item in self.listToDownload:
-			try:
+		for item in copyList:
+			#try:
 				status.set("Baixando musica: "+ item.title)
 				ydl_opts = {
     			'format': 'bestaudio/best',
@@ -129,13 +138,20 @@ class musicDownloader(threading.Thread):
 				try:
 					with youtube_dl.YoutubeDL(ydl_opts) as ydl:
 						ydl.download(['http://www.youtube.com/watch?v='+item.id])
+						videoList.delete(0)
+						listToDownload.remove(item)
+
+						if stopDownloadFlag == True:
+							
+							activeDownloaderThread = musicDownloader(listToDownload,link.get())
+							stopDownloadFlag = False
+							break
+
 				except youtube_dl.utils.DownloadError:
 					pass
-			except:
-				pass
+			#except:
+				#pass
 		status.set("Pronto.")
-			
-
 
 # Configuração do main Frame
 
@@ -158,11 +174,13 @@ y = (hs/2) - (h/2)
 root.geometry('%dx%d+%d+%d' % (w, h, x, y))
 
 # Variáveis
-
 destiny = StringVar()
 link = StringVar()
 status = StringVar(root,"Pronto.")
 listToDownload = []
+activeApiThread = GoogleApiHandler(link.get())
+activeDownloaderThread = musicDownloader(listToDownload,link.get())
+stopDownloadFlag = False
 
 # Funções 
 def searchDirectory():
@@ -190,29 +208,40 @@ def updateStatus():
 
 
 def addVideos():
-	
-	if link.get() == "":
-		tkinter.messagebox.showinfo("Error","Por Favor digite o link de uma playlist ou video antes de tentar adicionar")
+	global activeApiThread
+	if activeApiThread.isAlive():
+		tkinter.messagebox.showinfo("Alerta","Uma música ou mais ja estão sendo adicionadas")
+
 	else:
-		status.set("Adicionando Videos")
-		api = GoogleApiHandler(link.get())
-		api.start()
+		if link.get() == "":
+			tkinter.messagebox.showinfo("Error","Por Favor digite o link de uma playlist ou video antes de tentar adicionar")
+		else:
+			status.set("Adicionando Videos")
+			activeApiThread = GoogleApiHandler(link.get())
+			activeApiThread.start()
 
 def clearList():
 	listToDownload[:] = []
 	videoList.delete(0,END)
 
 def downloadVideos():
-	if destiny.get() == "" or listToDownload == []:
-		tkinter.messagebox.showinfo("Error","Por Favor escolha o destino dos arquivos ou adicione alguma música para baixar")
-	else:
-		status.set("Baixando videos")
-		downloader = musicDownloader(listToDownload,destiny.get())
-		downloader.start()
-		status.set("Pronto.")
+	global activeDownloaderThread
+	if activeDownloaderThread.isAlive():
+		tkinter.messagebox.showinfo("Alerta","Uma música ou mais ja estão sendo baixadas")
+	else:	
+		if destiny.get() == "" or listToDownload == []:
+			tkinter.messagebox.showinfo("Error","Por Favor escolha o destino dos arquivos ou adicione alguma música para baixar")
+		else:
+			status.set("Baixando videos")
+			activeDownloaderThread = musicDownloader(listToDownload,destiny.get())
+			activeDownloaderThread.start()
 
-def changeStatus():
-	print("oi")
+def stopDownload():
+	global stopDownloadFlag
+
+	stopDownloadFlag = True
+
+	tkinter.messagebox.showinfo("Alerta","O Download ira parar depois que finalizar a proxima musica")
 
 # Começo do módulo de escolher o destino dos arquivos
 directoryFrame = Frame(root)
@@ -258,8 +287,11 @@ buttonFrame.grid(row=4,column=1,columnspan=3,padx=15,pady=15)
 downloadButton = Button(buttonFrame,text="Baixar",command=downloadVideos)
 downloadButton.grid(row=1,column=1,pady=10,padx=10)
 
+stopButton = Button(buttonFrame, text="Parar",command=stopDownload)
+stopButton.grid(row=1,column=2,pady=10,padx=10)
+
 clearButton = Button(buttonFrame,text="Limpar",command=clearList)
-clearButton.grid(row=1,column=2,pady=10,padx=10)
+clearButton.grid(row=1,column=3,pady=10,padx=10)
 
 # Status Bar
 statusBar = Label(root, bd=1, relief = SUNKEN, anchor=W,textvariable=status)
