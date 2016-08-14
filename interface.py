@@ -5,6 +5,7 @@ import threading
 import json
 import urllib.request
 import youtube_dl
+import configparser
 
 # Support Classes
 
@@ -182,9 +183,21 @@ activeApiThread = GoogleApiHandler(link.get())
 activeDownloaderThread = musicDownloader(listToDownload,link.get())
 stopDownloadFlag = False
 
+configFile = configparser.ConfigParser()
+
+configFile.read("config.ini")
+
+if "Directory" in configFile:
+	destiny.set(configFile["Directory"]["outputFolder"])
+
 # Funções 
 def searchDirectory():
-	destiny.set(tkinter.filedialog.askdirectory())
+	selectedDir = tkinter.filedialog.askdirectory()
+	destiny.set(selectedDir)
+
+	with open("config.ini","w") as wConfigFile:
+		configFile["Directory"]["outputFolder"] = selectedDir
+		configFile.write(wConfigFile)
 
 def updateStatus():
 	
