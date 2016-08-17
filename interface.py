@@ -6,6 +6,7 @@ import json
 import urllib.request
 import youtube_dl
 import configparser
+import pickle
 
 # Support Classes
 
@@ -44,6 +45,9 @@ class GoogleApiHandler(threading.Thread):
 		for item in videosList:
 			listToDownload.append(item)
 			videoList.insert(END,item)
+
+			writeListFile()
+
 		activeApiThread = GoogleApiHandler(link.get())
 		link.set("")
 		status.set("Pronto.")
@@ -84,6 +88,7 @@ class GoogleApiHandler(threading.Thread):
 		if "watch?" in self.link and "list=" in self.link:
 			
 			answer = tkinter.messagebox.askquestion("Aviso","O seu link possui o dois atributos, uma playlist e um vídeo, deseja usar a playlist?")
+			
 			if answer == "yes":
 				playlistid = self.idSeparator(self.link,True)
 				returnLista = self.getDataPlaylist(playlistid)
@@ -122,7 +127,7 @@ class musicDownloader(threading.Thread):
 		copyList = list(self.listToDownload)
 
 		for item in copyList:
-			#try:
+			try:
 				status.set("Baixando musica: "+ item.title)
 				ydl_opts = {
     			'format': 'bestaudio/best',
@@ -141,7 +146,7 @@ class musicDownloader(threading.Thread):
 						ydl.download(['http://www.youtube.com/watch?v='+item.id])
 						videoList.delete(0)
 						listToDownload.remove(item)
-
+						writeListFile()
 						if stopDownloadFlag == True:
 							
 							activeDownloaderThread = musicDownloader(listToDownload,link.get())
@@ -150,8 +155,8 @@ class musicDownloader(threading.Thread):
 
 				except youtube_dl.utils.DownloadError:
 					pass
-			#except:
-				#pass
+			except:
+				pass
 		status.set("Pronto.")
 
 # Configuração do main Frame
@@ -189,6 +194,7 @@ configFile.read("config.ini")
 
 if "Directory" in configFile:
 	destiny.set(configFile["Directory"]["outputFolder"])
+
 
 # Funções 
 def searchDirectory():
@@ -233,9 +239,31 @@ def addVideos():
 			activeApiThread = GoogleApiHandler(link.get())
 			activeApiThread.start()
 
+def writeListFile():
+	try:
+		with open("downloadlist.pe","wb") as downFile:
+			global listToDownload
+			pickle.dump(listToDownload,downFile)
+	except:
+		pass
+
+def readListFile():
+	try:
+
+		with open("downloadlist.pe","rb") as downFile:
+			global listToDownload
+
+			listToDownload = pickle.load(downFile)
+
+			for item in listToDownload:
+				videoList.insert(END,item)
+	except:
+		pass
+
 def clearList():
 	listToDownload[:] = []
 	videoList.delete(0,END)
+	writeListFile()
 
 def downloadVideos():
 	global activeDownloaderThread
@@ -311,5 +339,7 @@ statusBar = Label(root, bd=1, relief = SUNKEN, anchor=W,textvariable=status)
 statusBar.grid(row=4,column=1,columnspan=10,sticky=S+W+E) 
 
 root.after(1, updateStatus)
+root.after(1, readListFile)
+
 
 root.mainloop()
